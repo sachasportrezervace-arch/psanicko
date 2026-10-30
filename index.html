@@ -61,7 +61,7 @@ h1, h2 { text-wrap: balance; }
 .logo { font: 700 22px var(--hand); }
 .logo span { color: var(--hl); }
 .top-right { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 0 14px; min-width: 0; }
-.linkbtn { background: none; border: 0; padding: 6px 0; white-space: nowrap; font: inherit; font-size: 14px; color: var(--hl-text); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.linkbtn { background: none; border: 0; padding: 6px 0; min-height: 44px; white-space: nowrap; font: inherit; font-size: 14px; color: var(--hl-text); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .linkbtn:hover { color: #FFB8DA; }
 
 /* buttons and inputs */
@@ -133,6 +133,10 @@ input[type=text]:focus, select:focus { border-color: var(--muted); }
 .ticket .t-stamp { width: 112px; display: flex; align-items: center; justify-content: center; }
 .bigstamp { font: 600 10px/1.35 var(--mono); letter-spacing: .06em; text-align: center; color: var(--red); border: 2.5px solid var(--red); border-radius: 8px; padding: 6px 8px; transform: rotate(-9deg); max-width: 92px; }
 
+@media (max-width: 420px) {
+  .ticket .t-stamp { width: 92px; }
+  .bigstamp { max-width: 76px; padding: 5px 6px; font-size: 9px; }
+}
 @media (min-width: 900px) {
   .game { grid-template-columns: minmax(0, 1.2fr) minmax(320px, 1fr); grid-template-rows: auto 1fr; grid-template-areas: "board top" "board bottom"; column-gap: 56px; row-gap: 22px; align-items: start; }
   .sheet { padding: 0 16px 16px; transform: rotate(-.4deg); }
@@ -166,7 +170,7 @@ input[type=text]:focus, select:focus { border-color: var(--muted); }
 .cut { border-top: 1.5px dashed #AFC3DA; margin: 18px 0 14px; }
 .intro-note { margin: 6px 0 0; font: 500 21px/1.2 var(--hand); color: var(--red); }
 details.how { font-size: 14px; }
-details.how summary { cursor: pointer; color: var(--hl-text); text-decoration: underline; text-underline-offset: 3px; padding: 6px 0; width: max-content; }
+details.how summary { cursor: pointer; color: var(--hl-text); text-decoration: underline; text-underline-offset: 3px; padding: 12px 0; width: max-content; }
 details.how p { margin: 8px 0 0; color: var(--muted); max-width: 60ch; }
 
 .folded-wrap { display: flex; justify-content: center; height: 196px; }
@@ -267,7 +271,7 @@ details.how p { margin: 8px 0 0; color: var(--muted); max-width: 60ch; }
       </label>
       <label class="field" for="setupNote">
         <span class="row"><span>Vzkaz k výzvě (nepovinné)</span><span id="setupCount">0 / 40</span></span>
-        <input type="text" id="setupNote" maxlength="40" placeholder="Dávám ti první tah. Víc gentleman nebudu." class="handinput">
+        <input type="text" id="setupNote" maxlength="40" placeholder="Dávám ti první tah." class="handinput">
       </label>
       <button class="btn primary wide" type="submit" id="setupSubmit">Založit hru</button>
     </form>
@@ -854,7 +858,7 @@ details.how p { margin: 8px 0 0; color: var(--muted); max-width: 60ch; }
   function legacySeat() { const win = winner(st); return win ? other(win.p) : turnOf(st); }
 
   function renderEnd(win) {
-    const youWon = !!win && win.p === me, s = stake(st), w = seriesAfter(st), games = w[0] + w[1] || 1;
+    const youWon = !!win && win.p === me, s = stake(st), w = seriesAfter(st);
     if (!win) {
       $("endL1").textContent = "Remíza."; $("endL2").textContent = "Deska je plná."; $("endL2").className = "dim";
     } else if (youWon) {
@@ -862,7 +866,7 @@ details.how p { margin: 8px 0 0; color: var(--muted); max-width: 60ch; }
     } else {
       $("endL1").textContent = `${nameOf(st, win.p)} má pět v řadě.`; $("endL2").textContent = me ? "Tentokrát." : "Konec hry."; $("endL2").className = "dim";
     }
-    $("endMeta").textContent = `hra ${win ? games : games + 1} · ${st.m.length} ${tahu(st.m.length)}` + (!youWon && st.t ? ` · poslední tah ${ago(st.t)}` : "");
+    $("endMeta").textContent = `hra ${st.w[0] + st.w[1] + 1} · ${st.m.length} ${tahu(st.m.length)}` + (!youWon && st.t ? ` · poslední tah ${ago(st.t)}` : "");
     const W = win ? nameOf(st, win.p) : "", L = win ? nameOf(st, other(win.p)) : "";
     $("tLabel").textContent = s ? "Sázka" : "Výsledek";
     $("tRes").textContent = !win ? (s ? "Sázka se přesouvá do odvety." : "Nikdo nevyhrál.")
@@ -994,12 +998,13 @@ details.how p { margin: 8px 0 0; color: var(--muted); max-width: 60ch; }
     const c = Math.floor(p.x), r = Math.floor(p.y);
     return (c >= 0 && c < N && r >= 0 && r < N) ? r * N + c : null;
   }
-  function choose(i) {
+  function choose(i, clicks = 1) {
     if (!canPlay() || i === null || grid(st)[i]) return;
+    if (clicks > 1 && pending === i) return;
     pending = pending === i ? null : i;
     cursor = i; render();
   }
-  $("board").addEventListener("click", ev => choose(cellFromEvent(ev)));
+  $("board").addEventListener("click", ev => choose(cellFromEvent(ev), ev.detail));
   $("board").addEventListener("dblclick", ev => { const i = cellFromEvent(ev); if (i !== null && canPlay() && !grid(st)[i]) { pending = i; confirmMove(); } });
   // only keyboard focus shows the cursor; redrawing on a tap would swallow the tap itself
   $("board").addEventListener("focus", () => view === "play" && $("board").matches(":focus-visible") && drawBoard());
