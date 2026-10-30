@@ -60,8 +60,8 @@ h1, h2 { text-wrap: balance; }
 .top { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
 .logo { font: 700 22px var(--hand); }
 .logo span { color: var(--hl); }
-.top-right { display: flex; align-items: center; gap: 14px; min-width: 0; }
-.linkbtn { background: none; border: 0; padding: 6px 0; font: inherit; font-size: 14px; color: var(--hl-text); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.top-right { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 0 14px; min-width: 0; }
+.linkbtn { background: none; border: 0; padding: 6px 0; white-space: nowrap; font: inherit; font-size: 14px; color: var(--hl-text); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .linkbtn:hover { color: #FFB8DA; }
 
 /* buttons and inputs */
@@ -177,11 +177,22 @@ details.how p { margin: 8px 0 0; color: var(--muted); max-width: 60ch; }
 }
 .pill { justify-self: center; display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px; border-radius: 99px; background: var(--turn); color: var(--desk); font-size: 13px; font-weight: 700; }
 .between { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.toast { position: fixed; left: 50%; bottom: max(20px, env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 10; max-width: calc(100vw - 32px); box-sizing: border-box; text-align: center; box-shadow: 0 10px 28px rgba(0,0,0,.45); }
+
+/* live room: waiting for the other player, old links, recent games */
+.wait { display: grid; gap: 10px; padding: 14px 16px; border-radius: 14px; background: var(--desk-2); }
+.waitline { margin: 0; display: flex; align-items: center; gap: 10px; font: 600 19px/1.2 var(--hand); }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--turn); flex: none; animation: blink 1.4s ease-in-out infinite; }
+.claims { display: flex; gap: 4px 16px; flex-wrap: wrap; }
+.recent { display: grid; gap: 8px; }
+.recent a { text-decoration: none; justify-content: space-between; }
+.recent a span { font: 10px var(--mono); color: var(--muted); }
 
 /* motion */
 @keyframes draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
 @keyframes swipe { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 @keyframes pulse { 0%, 100% { opacity: .35; } 50% { opacity: .65; } }
+@keyframes blink { 0%, 100% { opacity: 1; transform: none; } 50% { opacity: .3; transform: scale(.7); } }
 @keyframes rise { from { transform: translateY(12px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes hop { 0%, 100% { transform: none; } 40% { transform: translateY(-.14px); } }
 @keyframes stampIn { 0% { transform: scale(1.6) rotate(-9deg); opacity: 0; } 70% { transform: scale(.95) rotate(-9deg); opacity: 1; } 100% { transform: scale(1) rotate(-9deg); opacity: 1; } }
@@ -212,6 +223,7 @@ details.how p { margin: 8px 0 0; color: var(--muted); max-width: 60ch; }
     <span class="logo">psaníčko<span>.</span></span>
     <div class="top-right">
       <span class="meta" id="topMeta"></span>
+      <button type="button" class="linkbtn" id="copyTopBtn" hidden>Odkaz na hru</button>
       <button type="button" class="linkbtn" id="newGameBtn" hidden>Nová hra</button>
     </div>
   </header>
@@ -220,7 +232,7 @@ details.how p { margin: 8px 0 0; color: var(--muted); max-width: 60ch; }
   <section id="setup" class="narrow" hidden>
     <div style="display:grid;gap:8px">
       <h1 class="big">Vyzvi někoho na piškvorky.</h1>
-      <p class="meta">Odkaz pošleš do chatu. Celá hra se ukládá v něm, žádný účet ani server.</p>
+      <p class="meta">Odkaz pošleš do chatu jen jednou. Oba pak hrajete na něm a tahy se objevují samy, bez účtu.</p>
     </div>
     <form class="form" id="setupForm">
       <div class="row2">
@@ -257,8 +269,24 @@ details.how p { margin: 8px 0 0; color: var(--muted); max-width: 60ch; }
         <span class="row"><span>Vzkaz k výzvě (nepovinné)</span><span id="setupCount">0 / 40</span></span>
         <input type="text" id="setupNote" maxlength="40" placeholder="Dávám ti první tah. Víc gentleman nebudu." class="handinput">
       </label>
-      <button class="btn primary wide" type="submit">Založit hru</button>
+      <button class="btn primary wide" type="submit" id="setupSubmit">Založit hru</button>
     </form>
+    <div class="recent" id="recent" hidden>
+      <p class="label">Rozehrané hry na tomhle zařízení</p>
+      <div class="recent" id="recentList"></div>
+    </div>
+  </section>
+
+  <!-- Načítání a chyby místnosti -->
+  <section id="info" class="narrow" hidden>
+    <div style="display:grid;gap:10px;margin-top:6px">
+      <h1 class="h1" id="infoTitle"></h1>
+      <p class="meta" id="infoMeta"></p>
+    </div>
+    <div style="display:grid;gap:8px">
+      <button type="button" class="btn primary wide" id="infoRetry">Zkusit znovu</button>
+      <button type="button" class="btn wide" id="infoNew">Založit novou hru</button>
+    </div>
   </section>
 
   <!-- 2. Výzva, jak ji uvidí soupeř -->
@@ -267,11 +295,7 @@ details.how p { margin: 8px 0 0; color: var(--muted); max-width: 60ch; }
       <h1 class="big"><span id="introWho"></span> tě vyzývá<br>na <span class="squiggle">piškvorky.<svg aria-hidden="true" viewBox="0 0 200 14" preserveAspectRatio="none"><path d="M3 9 C 40 3, 80 12, 120 6 S 180 4, 197 8" fill="none" stroke="var(--hl)" stroke-width="4" stroke-linecap="round"/></svg></span></h1>
       <p class="meta" style="margin-top:10px">1 na 1 · deska 15 × 15 · pět v řadě vyhrává<br>na tah máš klidně celý den</p>
     </div>
-    <div class="vs">
-      <div class="chip"><svg aria-hidden="true" viewBox="0 0 20 20"><path d="M4 4 L16 16 M16 3.5 L4 16.5" stroke="var(--red-lt)" stroke-width="2.6" stroke-linecap="round" fill="none"/></svg><b id="introX"></b></div>
-      <span>vs</span>
-      <div class="chip on"><svg aria-hidden="true" viewBox="0 0 20 20"><ellipse cx="10" cy="10" rx="6.6" ry="6" stroke="var(--blue-lt)" stroke-width="2.4" fill="none"/></svg><b id="introO"></b><span class="cnt" id="introOcnt">začínáš</span></div>
-    </div>
+    <div class="vs" id="introVs"></div>
     <div class="note-card-wrap" id="introCard">
       <div class="tape" aria-hidden="true"></div>
       <div class="note-card">
@@ -291,9 +315,10 @@ details.how p { margin: 8px 0 0; color: var(--muted); max-width: 60ch; }
     <div style="display:grid;gap:8px;margin-top:8px">
       <button type="button" class="btn primary wide" id="acceptBtn">Přijmout výzvu</button>
       <div class="between">
-        <details class="how"><summary>Jak se hraje?</summary><p>Střídáte se v kreslení značek na desku 15 × 15. Kdo první udělá pět a víc v řadě (vodorovně, svisle nebo šikmo), vyhrává. Po každém tahu pošleš nový odkaz zpátky do chatu. Ke každému tahu můžeš připsat krátký vzkaz.</p></details>
-        <span class="meta">hraješ za kolečko ○</span>
+        <details class="how"><summary>Jak se hraje?</summary><p>Střídáte se v kreslení značek na desku 15 × 15. Kdo první udělá pět a víc v řadě (vodorovně, svisle nebo šikmo), vyhrává. Hrajete oba na tomhle odkazu: tah soupeře se tu objeví sám, stránku můžeš zavřít a vrátit se kdykoli. Ke každému tahu můžeš připsat krátký vzkaz.</p></details>
+        <span class="meta" id="introSide"></span>
       </div>
+      <button type="button" class="linkbtn" id="introMine" style="justify-self:start"></button>
     </div>
   </section>
 
@@ -339,6 +364,24 @@ details.how p { margin: 8px 0 0; color: var(--muted); max-width: 60ch; }
         </div>
       </div>
 
+      <div id="waitBox" class="wait" hidden>
+        <p class="waitline"><span class="dot" id="waitDot" aria-hidden="true"></span><span id="waitText"></span></p>
+        <p class="meta" id="waitMeta"></p>
+        <div class="claims" id="claims" hidden>
+          <button type="button" class="linkbtn" id="claimX"></button>
+          <button type="button" class="linkbtn" id="claimO"></button>
+        </div>
+        <button type="button" class="btn wide" id="waitCopy">Zkopírovat odkaz na hru</button>
+        <button type="button" class="linkbtn" id="undoBtn" style="justify-self:start">Vzít tah zpět</button>
+      </div>
+
+      <div id="legacyBox" class="wait" hidden>
+        <p class="waitline">Tohle je starý odkaz.</p>
+        <p class="meta">Hra se dřív posílala novým odkazem po každém tahu. Převeď ji na jeden živý odkaz: pošleš ho jednou a tahy se pak objevují samy.</p>
+        <button type="button" class="btn primary wide" id="convertBtn"></button>
+        <button type="button" class="linkbtn" id="convertOther" style="justify-self:start"></button>
+      </div>
+
       <div id="endBox" hidden style="display:grid;gap:12px">
         <div class="ticket">
           <div class="t-main">
@@ -353,19 +396,17 @@ details.how p { margin: 8px 0 0; color: var(--muted); max-width: 60ch; }
           <button type="button" class="btn primary wide" id="endPrimary"></button>
           <button type="button" class="btn wide" id="endSecondary"></button>
           <p class="meta" id="endCaption" style="text-align:center"></p>
-          <div class="between">
-            <button type="button" class="linkbtn" id="endUndo">Vzít tah zpět</button>
-            <span class="pill" id="endCopied" role="status" hidden></span>
-          </div>
+          <button type="button" class="linkbtn" id="endUndo" style="justify-self:start">Vzít tah zpět</button>
         </div>
       </div>
 
-      <p class="rules">Deska 15 × 15, pět a víc v řadě vyhrává, tahy se střídají. Celá hra je uložená v odkazu, na tah máš kolik chceš času.</p>
+      <p class="meta" id="net" role="status"></p>
+      <p class="rules">Deska 15 × 15, pět a víc v řadě vyhrává, tahy se střídají. Hra je uložená pod tímhle odkazem (30 dní od posledního tahu), na tah máš kolik chceš času.</p>
     </div>
   </section>
 
-  <!-- 4. Poslat do chatu -->
-  <section id="sent" class="narrow" hidden>
+  <!-- 4. Poslat odkaz do chatu (jen jednou, při založení) -->
+  <section id="share" class="narrow" hidden>
     <div class="folded-wrap">
       <svg id="folded" viewBox="0 0 220 190" width="220" height="190" role="img" aria-label="Tah složený do psaníčka">
         <path d="M150 40 C 176 22, 196 30, 204 14" fill="none" stroke="var(--line)" stroke-width="2" stroke-dasharray="4 6" stroke-linecap="round"/>
@@ -388,17 +429,17 @@ details.how p { margin: 8px 0 0; color: var(--muted); max-width: 60ch; }
       <p class="label">Takhle to přijde do chatu (můžeš upravit)</p>
       <textarea id="msg" class="bubble" aria-label="Zpráva s odkazem" spellcheck="false"></textarea>
     </div>
-    <span class="pill" id="copied" role="status" hidden></span>
     <div style="display:grid;gap:8px">
       <button type="button" class="btn primary wide" id="copyBtn">Zkopírovat zprávu</button>
       <button type="button" class="btn wide" id="copyLinkBtn">Jen odkaz</button>
       <div class="between">
-        <button type="button" class="linkbtn" id="backBtn"></button>
-        <span class="meta">celá hra je v odkazu</span>
+        <button type="button" class="linkbtn" id="backBtn">Do hry →</button>
+        <span class="meta">jeden odkaz na celou hru</span>
       </div>
     </div>
   </section>
 </div>
+<span class="pill toast" id="toast" role="status" hidden></span>
 
 <script>
 (() => {
@@ -481,8 +522,33 @@ details.how p { margin: 8px 0 0; color: var(--muted); max-width: 60ch; }
   // (GitHub Pages, Netlify, Cloudflare…) the game links to the address it was opened from.
   const inClaude = /claude/i.test(location.hostname) || location.protocol === "file:" || location.protocol === "about:";
   const BASE_URL = inClaude ? ARTIFACT_URL : location.origin + location.pathname;
-  const linkFor = s => BASE_URL + "#" + encode(s);
   const clone = s => ({ ...s, m: [...s.m], w: [...s.w], n: s.n ? { ...s.n } : null });
+
+  // ---------- shared room: one link for the whole game ----------
+  // The link is #r.<id>. The game lives at mantledb.sh (no account, CORS) as JSON {g, v, sx, so, u}:
+  // g = the g1 string above, v = write counter (every writer re-reads and checks it first),
+  // sx / so = device tokens holding the seats ("" = free), u = time of the write. Unknown fields are kept.
+  const API = "https://mantledb.sh/v2/";
+  const docUrl = id => `${API}psanicko-${id}/hra`;
+  const linkFor = () => BASE_URL + "#r." + room.id;
+  async function req(url, opt = {}) {
+    const ac = new AbortController(), timer = setTimeout(() => ac.abort(), 10000);
+    try { return await fetch(url, { ...opt, cache: "no-store", signal: ac.signal }); } finally { clearTimeout(timer); }
+  }
+  async function loadDoc(id) {
+    const r = await req(docUrl(id));
+    if (r.status === 404) return null;
+    if (!r.ok) throw new Error("load " + r.status);
+    return r.json();
+  }
+  async function saveDoc(id, d) {
+    const r = await req(docUrl(id), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...d, u: Date.now() }) });
+    if (!r.ok) throw new Error("save " + r.status);
+  }
+  const store = { get: k => attempt(() => localStorage.getItem(k), null), set: (k, v) => attempt(() => localStorage.setItem(k, v)) };
+  const randId = n => [...crypto.getRandomValues(new Uint8Array(n))].map(b => (b % 36).toString(36)).join("");
+  const device = store.get("pisk-dev") || randId(16);
+  store.set("pisk-dev", device);
 
   // ---------- game logic (rules unchanged) ----------
   const other = p => p === "x" ? "o" : "x";
@@ -508,19 +574,27 @@ details.how p { margin: 8px 0 0; color: var(--muted); max-width: 60ch; }
   function seriesAfter(s) { const w = [...s.w], win = winner(s); if (win) w[win.p === "x" ? 0 : 1]++; return w; }
 
   // ---------- state ----------
-  let loaded = null;   // state as it arrived in the link
-  let st = null;       // working state
-  let added = false;   // this viewer already played a move in this visit
-  let lock = false;    // this viewer has to send the link before anyone can play (challenge, rematch by the winner)
+  let st = null;       // the game as last read from (or written to) the room
+  let room = null;     // { id, v, sx, so } of the live game; null for an old g1 link and on setup
+  let me = null;       // "x" | "o" on this device, null = watching
+  let legacy = false;  // an old #g1 link, shown read-only with an offer to move it to a live link
+  let shareKind = "new";
   let view = "setup";
   let pending = null, cursor = 112;
   let draftStamp = 0;
-  let before = null;   // time and note before this visit's move, for undo
+  let busy = false;    // a write is on its way
+  let before = null;   // time and note before my last move, for undo
   let anim = {};       // one-shot animation flags, consumed by the next board draw
+  let net = "";        // connection trouble, shown under the board
+  let bootSeq = 0;
 
-  const canPlay = () => !!st && !added && !lock && !ended(st);
+  const turnOf = s => playerAt(s, s.m.length);
+  const freeSeat = () => !room ? null : !room.sx ? "x" : !room.so ? "o" : null;
+  const canPlay = () => !!st && !!room && !!me && !busy && !ended(st) && turnOf(st) === me;
+  const lastIsMine = () => !!me && st.m.length > 0 && playerAt(st, st.m.length - 1) === me;
   const count = (s, p) => s.m.filter((_, k) => playerAt(s, k) === p).length;
   const tahu = n => n === 1 ? "tah" : n >= 2 && n <= 4 ? "tahy" : "tahů";
+  const sign = p => p === "x" ? "křížek ×" : "kolečko ○";
   function ago(t) {
     if (!t) return "";
     const min = Math.max(0, Math.round(Date.now() / 60000 - t));
@@ -584,18 +658,18 @@ details.how p { margin: 8px 0 0; color: var(--muted); max-width: 60ch; }
       if (a.win && !calm() && winCells.includes(i)) g.style.animation = `hop 280ms ease-out ${a.winDelay + 500 + winCells.indexOf(i) * 60}ms`;
       svg.append(g);
     });
-    if (pending !== null) svg.append(mark(playerAt(st, st.m.length), pending, { ghost: true }));
+    if (pending !== null) svg.append(mark(turnOf(st), pending, { ghost: true }));
     if (win) {
       const ra = Math.floor(win.from / N), ca = win.from % N, rb = Math.floor(win.to / N), cb = win.to % N;
       const dr = Math.sign(rb - ra), dc = Math.sign(cb - ca);
       const x1 = ca + .5 - dc * .35, y1 = ra + .5 - dr * .35, x2 = cb + .5 + dc * .35, y2 = rb + .5 + dr * .35;
-      const lines = added
+      const lines = win.p === me
         ? [el("path", { d: `M${x1} ${y1}L${x2} ${y2}`, stroke: "var(--hl)", "stroke-width": ".42", "stroke-linecap": "round", opacity: ".55", fill: "none" }),
            el("path", { d: `M${x1 + dc * .05} ${y1 + dr * .05}L${x2 - dc * .05} ${y2 - dr * .05}`, stroke: "var(--ink)", "stroke-width": ".06", "stroke-linecap": "round", fill: "none" })]
         : [el("path", { d: `M${x1} ${y1}L${x2} ${y2}`, stroke: "var(--ink)", "stroke-width": ".12", "stroke-linecap": "round", opacity: ".8", fill: "none" })];
       lines.forEach(l => { if (a.win) drawIn(l, 500, a.winDelay); svg.append(l); });
     }
-    if (document.activeElement === svg && canPlay()) {
+    if (svg.matches(":focus-visible") && canPlay()) {
       svg.append(el("rect", { x: cursor % N + .04, y: Math.floor(cursor / N) + .04, width: .92, height: .92, fill: "none", stroke: "var(--ink)", "stroke-width": ".06", rx: .08 }));
     }
     svg.classList.toggle("locked", !canPlay());
@@ -604,7 +678,7 @@ details.how p { margin: 8px 0 0; color: var(--muted); max-width: 60ch; }
 
   function renderNote(delay) {
     const n = st.n, box = $("note");
-    const show = !!(n && (n.text || n.stamp)) && !(added && !ended(st));
+    const show = !!(n && (n.text || n.stamp));
     box.hidden = !show;
     if (!show) return;
     const who = st.m.length ? playerAt(st, st.m.length - 1) : "x";
@@ -617,24 +691,39 @@ details.how p { margin: 8px 0 0; color: var(--muted); max-width: 60ch; }
 
   const xIcon = '<svg aria-hidden="true" viewBox="0 0 20 20"><path d="M4 4 L16 16 M16 3.5 L4 16.5" stroke="var(--red-lt)" stroke-width="2.6" stroke-linecap="round" fill="none"/></svg>';
   const oIcon = '<svg aria-hidden="true" viewBox="0 0 20 20"><ellipse cx="10" cy="10" rx="6.6" ry="6" stroke="var(--blue-lt)" stroke-width="2.4" fill="none"/></svg>';
+  function chip(p, on, cnt) {
+    const d = document.createElement("div"); d.className = "chip" + (on ? " on" : "");
+    d.innerHTML = p === "x" ? xIcon : oIcon;
+    const b = document.createElement("b"); b.textContent = nameOf(st, p);
+    const c = document.createElement("span"); c.className = "cnt"; c.textContent = cnt;
+    d.append(b, c);
+    return d;
+  }
 
   // ---------- views ----------
   function setView(v) {
     view = v;
     $("setup").hidden = v !== "setup";
+    $("info").hidden = v !== "info";
     $("intro").hidden = v !== "intro";
     $("game").hidden = v !== "play" && v !== "end";
-    $("sent").hidden = v !== "sent";
+    $("share").hidden = v !== "share";
     $("newGameBtn").hidden = v === "setup";
     render();
     window.scrollTo({ top: 0, behavior: "auto" });
   }
+  // like setView, but an update that keeps the view keeps the scroll position too
+  const show = v => view === v ? render() : setView(v);
 
   function render() {
-    $("topMeta").textContent = st && view !== "setup" ? topMeta() : "";
+    const inGame = !!st && !!room && (view === "play" || view === "end" || view === "share");
+    $("topMeta").textContent = st && view !== "setup" && view !== "info" ? topMeta() : "";
+    $("copyTopBtn").hidden = !inGame || view === "share";
+    document.title = canPlay() ? "Jsi na tahu · Psaníčko" : "Psaníčko";
+    if (view === "setup") renderSetup();
     if (view === "intro") renderIntro();
     if (view === "play" || view === "end") renderGame();
-    if (view === "sent") renderSent();
+    if (view === "share") renderShare();
   }
   function topMeta() {
     const s = stake(st), parts = [];
@@ -643,9 +732,31 @@ details.how p { margin: 8px 0 0; color: var(--muted); max-width: 60ch; }
     return parts.join(" · ");
   }
 
+  function renderSetup() {
+    $("setupSubmit").disabled = busy;
+    $("setupSubmit").textContent = busy ? "Zakládám hru…" : "Založit hru";
+    const list = recentRooms(), box = $("recentList");
+    $("recent").hidden = !list.length;
+    box.textContent = "";
+    list.forEach(r => {
+      const a = document.createElement("a"); a.className = "btn wide"; a.href = "#r." + r.id;
+      a.textContent = `${r.x} × ${r.o}`;
+      const sp = document.createElement("span"); sp.textContent = r.me ? `hraješ za ${r.me === "x" ? "×" : "○"}` : "přihlížíš";
+      a.append(sp); box.append(a);
+    });
+  }
+
   function renderIntro() {
-    $("introWho").textContent = st.x;
-    $("introX").textContent = st.x; $("introO").textContent = st.o;
+    const seat = freeSeat() || "o", host = other(seat);
+    $("introWho").textContent = nameOf(st, host);
+    const vs = $("introVs"); vs.textContent = "";
+    const sp = document.createElement("span"); sp.textContent = "vs";
+    const myTurn = turnOf(st) === seat;
+    const mineChip = chip(seat, myTurn, myTurn ? (st.m.length ? "na tahu" : "začínáš") : "");
+    const hostChip = chip(host, false, "");
+    if (seat === "o") vs.append(hostChip, sp, mineChip); else vs.append(mineChip, sp, hostChip);
+    $("introSide").textContent = `hraješ za ${sign(seat)}`;
+    $("introMine").textContent = `Tohle je moje hra, jsem ${nameOf(st, host)}`;
     const s = stake(st), n = st.n;
     $("introStakeBox").hidden = !s;
     if (s) {
@@ -656,75 +767,124 @@ details.how p { margin: 8px 0 0; color: var(--muted); max-width: 60ch; }
     const hasNote = !!(n && n.text);
     $("introNoteBox").hidden = !hasNote;
     $("introCut").hidden = !(s && hasNote);
-    if (hasNote) { $("introNoteLabel").textContent = `Vzkaz od: ${st.x}`; $("introNote").textContent = n.text; }
+    if (hasNote) {
+      const who = st.m.length ? playerAt(st, st.m.length - 1) : host;
+      $("introNoteLabel").textContent = `Vzkaz od: ${nameOf(st, who)}`; $("introNote").textContent = n.text;
+    }
     $("introCard").hidden = !s && !hasNote;
     $("introFirst").hidden = st.m.length === 0;
-    $("introOcnt").textContent = st.m.length ? "na tahu" : "začínáš";
+    $("introFirst").textContent = st.m.length === 1 ? "První tah už je na desce." : `Na desce už je ${st.m.length} ${tahu(st.m.length)}.`;
+    $("acceptBtn").disabled = busy;
     $("introCard").classList.toggle("in", !calm());
   }
 
   function renderGame() {
-    const win = winner(st), isEnd = view === "end", turn = playerAt(st, st.m.length);
+    const win = winner(st), isEnd = view === "end", turn = turnOf(st), mine = canPlay();
     $("playTop").hidden = isEnd; $("endTop").hidden = !isEnd;
-    $("composer").hidden = isEnd || !canPlay();
+    $("composer").hidden = isEnd || !mine;
+    $("waitBox").hidden = isEnd || mine || legacy;
+    $("legacyBox").hidden = !legacy;
     $("endBox").hidden = !isEnd;
+    $("net").textContent = net; $("net").hidden = !net;
 
     if (!isEnd) {
       const players = $("players"); players.textContent = "";
       for (const p of ["x", "o"]) {
-        const on = canPlay() && turn === p;
-        const d = document.createElement("div"); d.className = "chip" + (on ? " on" : "");
-        d.innerHTML = p === "x" ? xIcon : oIcon;
-        const b = document.createElement("b"); b.textContent = nameOf(st, p);
-        const c = document.createElement("span"); c.className = "cnt";
-        const k = count(st, p); c.textContent = on ? "na tahu" : `${k} ${tahu(k)}`;
-        d.append(b, c); players.append(d);
+        const on = turn === p, k = count(st, p);
+        players.append(chip(p, on, (p === me ? "ty · " : "") + (on ? "na tahu" : `${k} ${tahu(k)}`)));
       }
+      const opp = me ? other(me) : null;
       let status, sub;
-      if (added) { status = "Tah je zapsaný."; sub = "Skládám psaníčko…"; }
-      else if (!st.m.length) { status = "Začínáš. Zahraj první tah."; sub = "Pak ti připravím zprávu s odkazem do chatu."; }
-      else if (!loaded && st.m.length) { status = "Jsi na tahu."; sub = ""; }
-      else {
+      if (legacy) { status = `Na tahu: ${nameOf(st, turn)}.`; sub = `tah č. ${st.m.length + 1}`; }
+      else if (!me) { status = `Na tahu: ${nameOf(st, turn)}.`; sub = "Přihlížíš, hrají jen dva."; }
+      else if (busy && pending !== null) { status = "Zapisuju tah…"; sub = ""; }
+      else if (mine && !st.m.length) { status = "Začínáš. Zahraj první tah."; sub = "Soupeř tah uvidí, jakmile otevře odkaz."; }
+      else if (mine) {
         status = "Jsi na tahu.";
-        sub = [`hraješ za ${turn === "x" ? "křížek ×" : "kolečko ○"}`, st.t ? `poslední tah ${ago(st.t)}` : "", `tah č. ${st.m.length + 1}`].filter(Boolean).join(" · ");
+        sub = [`hraješ za ${sign(me)}`, st.t ? `poslední tah ${ago(st.t)}` : "", `tah č. ${st.m.length + 1}`].filter(Boolean).join(" · ");
+      } else {
+        status = "Čeká se na soupeře.";
+        sub = `na tahu je ${nameOf(st, opp)} · tah se tu objeví sám`;
       }
       $("status").textContent = status;
       $("sub").textContent = sub; $("sub").hidden = !sub;
-      $("hint").textContent = pending === null ? "Klepni na pole na desce. Dvojklik zahraje rovnou." : "Vybráno. Potvrď tah, nebo klepni jinam.";
-      $("confirmBtn").disabled = pending === null; $("cancelBtn").disabled = pending === null;
-      [...$("stamps").children].forEach((b, k) => b.setAttribute("aria-pressed", String(draftStamp === k + 1)));
-      $("noteCount").textContent = `${$("vzkaz").value.length} / 40`;
-    } else renderEnd(win);
+      if (mine) {
+        $("hint").textContent = pending === null ? "Klepni na pole na desce. Dvojklik zahraje rovnou." : "Vybráno. Potvrď tah, nebo klepni jinam.";
+        $("confirmBtn").disabled = pending === null; $("cancelBtn").disabled = pending === null;
+        [...$("stamps").children].forEach((b, k) => b.setAttribute("aria-pressed", String(draftStamp === k + 1)));
+        $("noteCount").textContent = `${$("vzkaz").value.length} / 40`;
+      } else if (!legacy) renderWait(opp);
+      if (legacy) renderLegacy();
+    } else {
+      renderEnd(win);
+      if (legacy) renderLegacy();
+    }
     drawBoard();
   }
 
+  function renderWait(opp) {
+    let text, meta = "";
+    $("claims").hidden = !!me;
+    $("waitDot").hidden = !me;
+    if (!me) {
+      text = "Přihlížíš.";
+      meta = "Hraješ tuhle hru z jiného prohlížeče nebo telefonu? Pokračuj tady:";
+      $("claimX").textContent = `jsem × ${st.x}`; $("claimO").textContent = `jsem ○ ${st.o}`;
+    } else if (busy) {
+      text = "Odesílám…";
+    } else if (freeSeat() === opp) {
+      text = "Odkaz ještě nikdo neotevřel.";
+      meta = "Pošli ho do chatu. Jakmile ho soupeř otevře a přijme výzvu, uvidíš to tady.";
+    } else {
+      text = `${nameOf(st, opp)} je na tahu…`;
+      meta = (st.t && lastIsMine() ? `Tvůj tah ${ago(st.t)}. ` : "") + "Stránku můžeš zavřít, hra na tomhle odkazu počká.";
+    }
+    $("waitText").textContent = text;
+    $("waitMeta").textContent = meta; $("waitMeta").hidden = !meta;
+    $("undoBtn").hidden = !lastIsMine() || busy;
+  }
+
+  function renderLegacy() {
+    const seat = legacySeat();
+    $("convertBtn").textContent = busy ? "Zakládám odkaz…" : `Pokračovat živě za ${sign(seat).split(" ")[1]} ${nameOf(st, seat)}`;
+    $("convertBtn").disabled = busy;
+    $("convertOther").textContent = `Jsem ${other(seat) === "x" ? "×" : "○"} ${nameOf(st, other(seat))}`;
+  }
+  // whoever opens an old link is usually the one it was sent to: the player on turn, or the loser
+  function legacySeat() { const win = winner(st); return win ? other(win.p) : turnOf(st); }
+
   function renderEnd(win) {
-    const youWon = added, s = stake(st), w = seriesAfter(st), games = w[0] + w[1] || 1;
+    const youWon = !!win && win.p === me, s = stake(st), w = seriesAfter(st), games = w[0] + w[1] || 1;
     if (!win) {
       $("endL1").textContent = "Remíza."; $("endL2").textContent = "Deska je plná."; $("endL2").className = "dim";
     } else if (youWon) {
       $("endL1").textContent = "Pět v řadě."; $("endL2").textContent = "Výhra je tvoje!"; $("endL2").className = "accent";
     } else {
-      $("endL1").textContent = `${nameOf(st, win.p)} má pět v řadě.`; $("endL2").textContent = "Tentokrát."; $("endL2").className = "dim";
+      $("endL1").textContent = `${nameOf(st, win.p)} má pět v řadě.`; $("endL2").textContent = me ? "Tentokrát." : "Konec hry."; $("endL2").className = "dim";
     }
     $("endMeta").textContent = `hra ${win ? games : games + 1} · ${st.m.length} ${tahu(st.m.length)}` + (!youWon && st.t ? ` · poslední tah ${ago(st.t)}` : "");
     const W = win ? nameOf(st, win.p) : "", L = win ? nameOf(st, other(win.p)) : "";
     $("tLabel").textContent = s ? "Sázka" : "Výsledek";
-    $("tRes").textContent = !win ? (s ? "Sázka se přesouvá do odvety." : "Nikdo nevyhrál.") : s ? (youWon ? s.win(W, L) : s.lose(W, L)) : (youWon ? "Bez sázky, jen pro radost." : `Vyhrává ${W}.`);
+    $("tRes").textContent = !win ? (s ? "Sázka se přesouvá do odvety." : "Nikdo nevyhrál.")
+      : !me ? (s ? s.third(W, L) : `Vyhrává ${W}.`)
+      : s ? (youWon ? s.win(W, L) : s.lose(W, L)) : (youWon ? "Bez sázky, jen pro radost." : `Vyhrává ${W}.`);
     $("tSer").textContent = `série: ${st.x} ${w[0]} : ${w[1]} ${st.o}`;
     const stampOn = !!(win && youWon && s);
     $("tStampBox").hidden = !stampOn; $("tCut").hidden = !stampOn;
     if (stampOn) { $("tStamp").textContent = s.stamp; $("tStamp").classList.toggle("in", !!anim.win && !calm()); }
     const loser = win ? nameOf(st, other(win.p)) : nameOf(st, other(st.s));
-    if (!win) {
-      $("endPrimary").textContent = "Poslat do chatu"; $("endSecondary").textContent = "Odveta"; $("endCaption").textContent = "";
-    } else if (youWon) {
-      $("endPrimary").textContent = `Poslat výsledek`; $("endSecondary").textContent = `Odveta (začíná ${loser})`; $("endCaption").textContent = "";
-    } else {
+    $("endPrimary").hidden = !me || legacy;
+    $("endSecondary").hidden = legacy;
+    $("endCaption").textContent = "";
+    $("endPrimary").disabled = busy;
+    if (!me) $("endSecondary").textContent = "Zkopírovat odkaz na hru";
+    else if (!win) { $("endPrimary").textContent = "Odveta"; $("endSecondary").textContent = "Zkopírovat odkaz na hru"; }
+    else if (youWon) { $("endPrimary").textContent = `Odveta (začíná ${loser})`; $("endSecondary").textContent = "Zkopírovat odkaz na hru"; }
+    else {
       $("endPrimary").textContent = "Chci odvetu"; $("endSecondary").textContent = "Uznat porážku";
       $("endCaption").textContent = `zkopíruje zprávu: „${concedeText()}“`;
     }
-    $("endUndo").hidden = !added;
+    $("endUndo").hidden = !youWon || busy || legacy;
   }
   function concedeText() {
     const win = winner(st), s = stake(st);
@@ -732,49 +892,99 @@ details.how p { margin: 8px 0 0; color: var(--muted); max-width: 60ch; }
     return `Uznávám porážku. ${s ? s.third(W, L) + " " : ""}Kdy a kde?`;
   }
 
-  // the message that goes into the chat
+  // the one message that goes into the chat
   function message() {
-    const link = linkFor(st), win = winner(st), s = stake(st), series = st.w[0] || st.w[1];
-    if (win) { const W = nameOf(st, win.p), L = nameOf(st, other(win.p)); return `Pět v řadě, konec hry. ${s ? s.third(W, L) + " " : ""}Podívej: ${link}`; }
-    if (full(st)) return `Remíza, deska je plná. Odveta? ${link}`;
-    if (!st.m.length) {
-      if (series) return `Odveta! Série ${st.x} ${st.w[0]} : ${st.w[1]} ${st.o}. Začínáš ty: ${link}`;
-      return `${st.x} tě vyzývá na piškvorky.${s ? " O co hrajeme: " + s.text : ""} Pět v řadě vyhrává, na tah máš klidně celý den: ${link}`;
-    }
-    if (st.m.length === 1 && !loaded) {
-      if (series) return `Odveta! Série ${st.x} ${st.w[0]} : ${st.w[1]} ${st.o}. První tah je na desce, jsi na řadě: ${link}`;
-      return `${st.x} tě vyzývá na piškvorky.${s ? " O co hrajeme: " + s.text : ""} První tah je na desce, jsi na řadě: ${link}`;
-    }
-    const n = st.n;
-    const head = n && n.text ? `${n.text}` : n && n.stamp ? STAMPS[n.stamp] : `Tah č. ${st.m.length}.`;
-    return `${head} Jsi na řadě: ${link}`;
+    const link = linkFor(), s = stake(st);
+    if (shareKind === "convert") return `Přesouvám naše piškvorky na jeden odkaz, tahy se na něm teď objevují samy: ${link}`;
+    return `${nameOf(st, me || "x")} tě vyzývá na piškvorky.${s ? " O co hrajeme: " + s.text : ""} Pět v řadě vyhrává, hrajeme oba na tomhle odkazu a na tah máš klidně celý den: ${link}`;
   }
 
-  function renderSent() {
-    const win = winner(st);
-    const to = win ? other(win.p) : playerAt(st, st.m.length);
-    $("foldName").textContent = nameOf(st, to);
-    let title, meta = "";
-    if (win) title = "Výsledek je na papíře. Pošli ho.";
-    else if (full(st)) title = "Remíza je na papíře. Pošli ji.";
-    else if (!st.m.length) { title = "Výzva je na papíře. Teď ji pošli."; const s = stake(st); meta = s ? `o co: ${s.text}` : "bez sázky"; }
-    else {
-      title = "Tah je na papíře. Teď ho pošli.";
-      const n = st.n, bits = [`tah č. ${st.m.length}`];
-      if (n && n.stamp) bits.push(`razítko ${STAMPS[n.stamp]}`);
-      if (n && n.text) bits.push(`vzkaz ${n.text.length} / 40 znaků`);
-      meta = bits.join(" · ");
-    }
+  function renderShare() {
+    $("foldName").textContent = nameOf(st, other(me || "x"));
+    const title = shareKind === "convert" ? "Hra je na novém odkazu. Pošli ho." : "Výzva je na papíře. Teď ji pošli.";
+    const s = stake(st);
+    const meta = ["odkaz posíláš jen jednou, tahy se pak na něm objevují samy", shareKind === "new" ? (s ? `o co: ${s.text}` : "bez sázky") : ""].filter(Boolean).join(" · ");
     $("sentTitle").textContent = title;
-    $("sentMeta").textContent = meta; $("sentMeta").hidden = !meta;
-    const link = linkFor(st), msg = $("msg");
+    $("sentMeta").textContent = meta;
+    const link = linkFor(), msg = $("msg");
     if (msg.dataset.link !== link) { msg.value = message(); msg.dataset.link = link; }
-    $("copied").hidden = true;
-    if (added) { $("backBtn").textContent = "Vzít tah zpět"; $("backBtn").hidden = false; }
-    else if (!loaded && !st.m.length && !(st.w[0] || st.w[1])) { $("backBtn").textContent = "Upravit výzvu"; $("backBtn").hidden = false; }
-    else $("backBtn").hidden = true;
     $("folded").classList.toggle("pop", !calm());
   }
+
+  // ---------- writing to the room ----------
+  // Re-read the room, check that nothing changed since we last saw it, then write the next state.
+  async function commit(next, ok, conflictText) {
+    busy = true; pollSeq++; render();
+    let d;
+    try { d = await loadDoc(room.id); }
+    catch { busy = false; toast("Spojení nevyšlo, zkus to znovu."); render(); return false; }
+    const cur = d && decode(d.g);
+    if (!d || !cur || d.v !== room.v || !ok(cur)) {
+      busy = false; pending = null;
+      toast(conflictText || "Mezitím se hra změnila, tah se nezapsal.");
+      if (d) apply(d, true); else render();
+      return false;
+    }
+    try { await saveDoc(room.id, { ...d, g: encode(next), v: d.v + 1 }); }
+    catch { busy = false; toast("Tah se nepodařilo odeslat, zkus to znovu."); render(); return false; }
+    room.v = d.v + 1; room.sx = d.sx || ""; room.so = d.so || "";
+    st = next; busy = false; lastChange = Date.now();
+    return true;
+  }
+
+  // a newer state arrived from the room (poll or failed write)
+  function apply(d, force) {
+    if (!room || !d) return;
+    room.sx = d.sx || ""; room.so = d.so || "";
+    const s = decode(d.g || "");
+    if (!s || (d.v === room.v && !force)) return;
+    const prev = st;
+    room.v = d.v; st = s; lastChange = Date.now();
+    const sameGame = prev && s.x === prev.x && s.o === prev.o && s.s === prev.s && s.w[0] === prev.w[0] && s.w[1] === prev.w[1];
+    const grew = sameGame && s.m.length === prev.m.length + 1 && prev.m.every((x, i) => s.m[i] === x);
+    if (!sameGame || s.m.length < (prev ? prev.m.length : 0)) before = null;
+    if (pending !== null && (grid(st)[pending] || !canPlay())) pending = null;
+    if (view === "intro") {
+      if (!freeSeat()) show(ended(st) ? "end" : "play"); else render();
+      return;
+    }
+    if (view === "share" || view === "info" || view === "setup") return;
+    if (grew && me && turnOf(st) === me) buzz();
+    if (ended(st)) { anim = grew ? { last: true, win: !!winner(st), winDelay: 780 } : {}; show("end"); }
+    else { anim = grew ? { last: true } : {}; show("play"); }
+    remember();
+  }
+
+  // ---------- polling ----------
+  let pollT = null, pollSeq = 0, lastChange = Date.now(), fails = 0;
+  function interval() {
+    const idle = Date.now() - lastChange;
+    const ms = idle < 5 * 60e3 ? 3000 : idle < 30 * 60e3 ? 10000 : 30000;
+    return fails ? Math.min(60000, ms * 2 ** Math.min(fails, 4)) : ms;
+  }
+  function schedule(ms) { clearTimeout(pollT); pollT = setTimeout(poll, ms); }
+  async function poll() {
+    clearTimeout(pollT);
+    if (!room || room.v < 0 || document.hidden) return;
+    if (busy) { schedule(1500); return; }
+    const id = room.id, seq = ++pollSeq;
+    try {
+      const d = await loadDoc(id);
+      if (!room || room.id !== id || seq !== pollSeq || busy) return schedule(interval());
+      fails = 0;
+      if (net) { net = ""; render(); }
+      if (d) apply(d);
+    } catch {
+      fails++;
+      if (fails >= 2 && !net) { net = "Spojení vázne, zkouším to znovu…"; render(); }
+    }
+    schedule(interval());
+  }
+  function wake() { if (room && !document.hidden) { lastChange = Date.now(); poll(); } }
+  document.addEventListener("visibilitychange", wake);
+  window.addEventListener("pageshow", e => { if (e.persisted) wake(); });
+  window.addEventListener("online", wake);
+  window.addEventListener("focus", wake);
 
   // ---------- interaction ----------
   function cellFromEvent(ev) {
@@ -791,7 +1001,8 @@ details.how p { margin: 8px 0 0; color: var(--muted); max-width: 60ch; }
   }
   $("board").addEventListener("click", ev => choose(cellFromEvent(ev)));
   $("board").addEventListener("dblclick", ev => { const i = cellFromEvent(ev); if (i !== null && canPlay() && !grid(st)[i]) { pending = i; confirmMove(); } });
-  $("board").addEventListener("focus", () => view === "play" && drawBoard());
+  // only keyboard focus shows the cursor; redrawing on a tap would swallow the tap itself
+  $("board").addEventListener("focus", () => view === "play" && $("board").matches(":focus-visible") && drawBoard());
   $("board").addEventListener("blur", () => view === "play" && drawBoard());
   $("board").addEventListener("keydown", ev => {
     const r = Math.floor(cursor / N), c = cursor % N;
@@ -810,71 +1021,125 @@ details.how p { margin: 8px 0 0; color: var(--muted); max-width: 60ch; }
   $("confirmBtn").addEventListener("click", confirmMove);
   $("cancelBtn").addEventListener("click", () => { pending = null; render(); });
 
-  function confirmMove() {
+  async function confirmMove() {
     if (pending === null || !canPlay() || grid(st)[pending]) return;
-    before = { t: st.t, n: st.n, draft: { text: $("vzkaz").value, stamp: draftStamp } };
-    st.m.push(pending); pending = null;
-    st.t = Math.floor(Date.now() / 60000);
-    const text = $("vzkaz").value.trim().slice(0, 40);
-    st.n = text || draftStamp ? { stamp: draftStamp, text } : null;
+    const len = st.m.length, draft = { text: $("vzkaz").value, stamp: draftStamp };
+    const text = draft.text.trim().slice(0, 40);
+    const next = clone(st);
+    next.m.push(pending);
+    next.t = Math.floor(Date.now() / 60000);
+    next.n = text || draftStamp ? { stamp: draftStamp, text } : null;
+    const prev = { t: st.t, n: st.n, draft };
+    if (!await commit(next, cur => cur.m.length === len && turnOf(cur) === me)) return;
+    before = prev; pending = null;
     $("vzkaz").value = ""; draftStamp = 0;
-    added = true; buzz();
-    if (ended(st)) { anim = { own: true, win: true, winDelay: 360 }; setView("end"); return; }
-    anim = { own: true };
-    render();
-    if (calm()) { setView("sent"); return; }
-    setTimeout(() => {
-      const sh = $("sheet"); let done = false;
-      const go = () => { if (done) return; done = true; sh.classList.remove("fold"); if (added && view === "play") setView("sent"); };
-      sh.addEventListener("animationend", go, { once: true });
-      sh.classList.add("fold");
-      setTimeout(go, 900);
-    }, 400);
+    buzz();
+    if (ended(st)) { anim = { own: true, win: true, winDelay: 360 }; show("end"); }
+    else { anim = { own: true }; show("play"); }
   }
-  function undo() {
-    if (!added || !before) return;
-    st.m.pop(); st.t = before.t; st.n = before.n;
-    $("vzkaz").value = before.draft.text; draftStamp = before.draft.stamp;
-    added = false; before = null; pending = null;
-    setView("play");
+  // undo is possible only while the other player has not moved yet
+  async function undo() {
+    if (busy || !lastIsMine()) return;
+    const len = st.m.length, prev = before;
+    const next = clone(st);
+    next.m.pop(); next.t = prev ? prev.t : st.t; next.n = prev ? prev.n : null;
+    if (!await commit(next, cur => cur.m.length === len, "Soupeř už mezitím táhl, tah zpět nejde.")) return;
+    before = null;
+    if (prev) { $("vzkaz").value = prev.draft.text; draftStamp = prev.draft.stamp; }
+    anim = {}; show("play");
   }
   $("endUndo").addEventListener("click", undo);
-  $("backBtn").addEventListener("click", () => { if (added) undo(); else setView("setup"); });
-  $("acceptBtn").addEventListener("click", () => { anim = st.m.length ? { last: true } : {}; setView("play"); });
+  $("undoBtn").addEventListener("click", undo);
 
-  function rematch(starterPlays) {
+  async function rematch() {
+    if (busy || !me) return;
     const win = winner(st);
-    st = { x: st.x, o: st.o, s: win ? other(win.p) : other(st.s), m: [], t: null, k: st.k, kc: st.kc, n: null, w: seriesAfter(st) };
-    loaded = null; added = false; pending = null; before = null; draftStamp = 0; $("vzkaz").value = "";
-    lock = !starterPlays;
-    setView(starterPlays ? "play" : "sent");
+    const next = { x: st.x, o: st.o, s: win ? other(win.p) : other(st.s), m: [], t: null, k: st.k, kc: st.kc, n: null, w: seriesAfter(st) };
+    if (!await commit(next, cur => ended(cur), "Odvetu už mezitím založil soupeř.")) return;
+    before = null; pending = null; draftStamp = 0; $("vzkaz").value = "";
+    anim = {}; show("play");
   }
-  $("endPrimary").addEventListener("click", () => {
-    const win = winner(st);
-    if (!win || added) setView("sent");
-    else rematch(true);
-  });
+  $("endPrimary").addEventListener("click", rematch);
   $("endSecondary").addEventListener("click", () => {
     const win = winner(st);
-    if (!win) rematch(false);
-    else if (added) rematch(false);
-    else copy(concedeText(), "endCopied");
+    if (me && win && win.p !== me) copy(concedeText(), "Zkopírováno – vlož to do chatu");
+    else copyLink();
   });
 
-  async function copy(text, pillId) {
-    const pill = $(pillId);
-    try {
-      await navigator.clipboard.writeText(text);
-      pill.textContent = "Zkopírováno – vlož to do chatu";
-    } catch {
-      if (pillId === "copied") { const t = $("msg"); t.focus(); t.select(); }
-      pill.textContent = "Kopírování nejde, označ text a zkopíruj ho ručně";
-    }
-    pill.hidden = false;
-    clearTimeout(copy.t); copy.t = setTimeout(() => pill.hidden = true, 2600);
+  // ---------- joining ----------
+  async function accept() {
+    if (busy || !room) return;
+    busy = true; render();
+    let d;
+    try { d = await loadDoc(room.id); }
+    catch { busy = false; toast("Spojení nevyšlo, zkus to znovu."); render(); return; }
+    const seat = d && (!d.sx ? "x" : !d.so ? "o" : null);
+    if (!d || !seat) { busy = false; toast("Výzvu už přijal někdo jiný. Můžeš přihlížet."); apply(d, true); show(ended(st) ? "end" : "play"); return; }
+    const nd = { ...d, v: d.v + 1, [seat === "x" ? "sx" : "so"]: device };
+    try { await saveDoc(room.id, nd); }
+    catch { busy = false; toast("Spojení nevyšlo, zkus to znovu."); render(); return; }
+    busy = false;
+    room.v = nd.v; room.sx = nd.sx || ""; room.so = nd.so || "";
+    st = decode(d.g) || st;
+    setMe(seat);
+    anim = st.m.length ? { last: true } : {};
+    show(ended(st) ? "end" : "play");
   }
-  $("copyBtn").addEventListener("click", () => copy($("msg").value, "copied"));
-  $("copyLinkBtn").addEventListener("click", () => copy(linkFor(st), "copied"));
+  $("acceptBtn").addEventListener("click", accept);
+  // the same player on another browser: no write needed, the seat is just remembered here
+  function claim(p) {
+    if (!room || !confirm(`Pokračovat v tomhle prohlížeči jako ${nameOf(st, p)} (${p === "x" ? "×" : "○"})?`)) return;
+    setMe(p); anim = {}; show(ended(st) ? "end" : "play");
+  }
+  $("claimX").addEventListener("click", () => claim("x"));
+  $("claimO").addEventListener("click", () => claim("o"));
+  $("introMine").addEventListener("click", () => claim(other(freeSeat() || "o")));
+  function setMe(p) { me = p; store.set("pisk-r-" + room.id, p); remember(); }
+
+  // ---------- copying ----------
+  function toast(text) {
+    const t = $("toast");
+    t.textContent = text; t.hidden = false;
+    clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, 2800);
+  }
+  async function copy(text, done) {
+    try { await navigator.clipboard.writeText(text); toast(done); }
+    catch { window.prompt("Zkopíruj si to:", text); }
+  }
+  const copyLink = () => copy(linkFor(), "Odkaz je zkopírovaný");
+  $("copyBtn").addEventListener("click", () => copy($("msg").value, "Zkopírováno – vlož to do chatu"));
+  $("copyLinkBtn").addEventListener("click", copyLink);
+  $("copyTopBtn").addEventListener("click", copyLink);
+  $("waitCopy").addEventListener("click", copyLink);
+  $("backBtn").addEventListener("click", () => { anim = {}; show(ended(st) ? "end" : "play"); });
+
+  // ---------- recent rooms on this device ----------
+  function recentRooms() { return attempt(() => JSON.parse(store.get("pisk-rooms") || "[]"), []).filter(r => r && /^[0-9a-z]{6,24}$/.test(r.id)); }
+  function remember() {
+    if (!room || !st) return;
+    const list = recentRooms().filter(r => r.id !== room.id);
+    list.unshift({ id: room.id, x: st.x, o: st.o, me });
+    store.set("pisk-rooms", JSON.stringify(list.slice(0, 5)));
+  }
+
+  // ---------- creating a room ----------
+  async function createRoom(s, seat, kind) {
+    if (busy) return;
+    busy = true; render();
+    const id = randId(12);
+    const d = { app: "psanicko", g: encode(s), v: 1, sx: seat === "x" ? device : "", so: seat === "o" ? device : "" };
+    try { await saveDoc(id, d); }
+    catch { busy = false; toast("Hru se nepodařilo založit. Zkontroluj připojení a zkus to znovu."); render(); return; }
+    busy = false; legacy = false; st = s; shareKind = kind;
+    room = { id, v: 1, sx: d.sx, so: d.so };
+    bootSeq++;
+    history.replaceState(null, "", location.pathname + location.search + "#r." + id);
+    setMe(seat);
+    lastChange = Date.now(); schedule(3000);
+    setView("share");
+  }
+  $("convertBtn").addEventListener("click", () => createRoom(clone(st), legacySeat(), "convert"));
+  $("convertOther").addEventListener("click", () => createRoom(clone(st), other(legacySeat()), "convert"));
 
   // ---------- setup ----------
   const syncCustom = () => { $("customWrap").hidden = $("stakeSel").value !== "c"; };
@@ -882,31 +1147,66 @@ details.how p { margin: 8px 0 0; color: var(--muted); max-width: 60ch; }
   $("stakeCustom").addEventListener("input", () => { $("customCount").textContent = `${$("stakeCustom").value.length} / 32`; });
   $("setupNote").addEventListener("input", () => { $("setupCount").textContent = `${$("setupNote").value.length} / 40`; });
   function showSetup() {
-    try { if (!$("nameX").value) $("nameX").value = localStorage.getItem("pisk-name") || ""; } catch {}
+    if (!$("nameX").value) $("nameX").value = store.get("pisk-name") || "";
     syncCustom(); setView("setup");
   }
-  $("newGameBtn").addEventListener("click", () => { loaded = null; st = null; added = false; lock = false; pending = null; showSetup(); });
+  $("newGameBtn").addEventListener("click", () => {
+    clearTimeout(pollT); bootSeq++;
+    room = null; me = null; legacy = false; st = null; busy = false; pending = null; net = "";
+    history.pushState(null, "", location.pathname + location.search);
+    showSetup();
+  });
+  $("infoNew").addEventListener("click", () => $("newGameBtn").click());
+  $("infoRetry").addEventListener("click", boot);
   $("setupForm").addEventListener("submit", ev => {
     ev.preventDefault();
     const x = $("nameX").value.trim(), o = $("nameO").value.trim();
-    if (!x || !o) return;
-    try { localStorage.setItem("pisk-name", x); } catch {}
+    if (!x || !o || busy) return;
+    store.set("pisk-name", x);
     let k = $("stakeSel").value, kc = "";
     if (k === "c") { kc = $("stakeCustom").value.trim().slice(0, 32); if (!kc) k = ""; }
     const text = $("setupNote").value.trim().slice(0, 40);
-    st = { x, o, s: $("starter").value, m: [], t: null, k, kc, n: text ? { stamp: 0, text } : null, w: [0, 0] };
-    loaded = null; added = false; pending = null; before = null; draftStamp = 0; $("vzkaz").value = "";
-    lock = st.s !== "x";
-    setView(st.s === "x" ? "play" : "sent");
+    pending = null; before = null; draftStamp = 0; $("vzkaz").value = "";
+    createRoom({ x, o, s: $("starter").value, m: [], t: null, k, kc, n: text ? { stamp: 0, text } : null, w: [0, 0] }, "x", "new");
   });
 
-  function boot() {
-    const s = decode(location.hash || "");
-    if (!s) { showSetup(); return; }
-    loaded = s; st = clone(s); added = false; lock = false; pending = null; before = null; draftStamp = 0;
-    const turn = playerAt(st, st.m.length);
+  // ---------- boot ----------
+  function info(title, meta, retry) {
+    $("infoTitle").textContent = title;
+    $("infoMeta").textContent = meta; $("infoMeta").hidden = !meta;
+    $("infoRetry").hidden = !retry; $("infoNew").hidden = retry === null;
+    setView("info");
+  }
+  async function openRoom(id, seq) {
+    room = { id, v: -1, sx: "", so: "" };
+    info("Otevírám hru…", "", null);
+    let d;
+    try { d = await loadDoc(id); }
+    catch { if (seq === bootSeq) info("Hru se nepodařilo načíst.", "Zkontroluj připojení a zkus to znovu.", true); return; }
+    if (seq !== bootSeq) return;
+    const s = d && decode(d.g || "");
+    if (!s) { room = null; info("Tahle hra tu není.", "Odkaz je špatně zkopírovaný, nebo hra vypršela (ukládá se 30 dní od posledního tahu).", false); return; }
+    st = s; room.v = d.v; room.sx = d.sx || ""; room.so = d.so || "";
+    const saved = store.get("pisk-r-" + id);
+    me = saved === "x" || saved === "o" ? saved : room.sx === device ? "x" : room.so === device ? "o" : null;
+    lastChange = Date.now(); schedule(3000);
+    if (!me && freeSeat() && !ended(st)) { setView("intro"); return; }
+    remember();
     if (ended(st)) { anim = { last: true, win: !!winner(st), winDelay: 780 }; setView("end"); }
-    else if (st.m.length <= 1 && turn === "o" && !(st.w[0] || st.w[1])) setView("intro");
+    else { anim = st.m.length ? { last: true } : {}; setView("play"); }
+  }
+  function boot() {
+    const seq = ++bootSeq;
+    clearTimeout(pollT);
+    room = null; me = null; legacy = false; busy = false; pending = null; before = null; draftStamp = 0; anim = {}; net = ""; fails = 0;
+    const h = (location.hash || "").replace(/^#/, "");
+    const r = /^r\.([0-9a-z]{6,24})$/.exec(h);
+    if (r) { openRoom(r[1], seq); return; }
+    const s = decode(h);
+    if (!s) { st = null; showSetup(); return; }
+    // an old link from before the live rooms: show it and offer to move it to one link
+    legacy = true; st = s;
+    if (ended(st)) { anim = { last: true, win: !!winner(st), winDelay: 780 }; setView("end"); }
     else { anim = st.m.length ? { last: true } : {}; setView("play"); }
   }
   window.addEventListener("hashchange", boot);
