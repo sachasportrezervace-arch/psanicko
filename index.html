@@ -154,6 +154,11 @@ input[type=text]:focus, select:focus { border-color: var(--muted); }
 .ticket .t-stamp { width: 112px; display: flex; align-items: center; justify-content: center; }
 .bigstamp { font: 600 10px/1.35 var(--mono); letter-spacing: .06em; text-align: center; color: var(--red); border: 2.5px solid var(--red); border-radius: 8px; padding: 6px 8px; transform: rotate(-9deg); max-width: 92px; }
 
+@media (max-width: 480px) {
+  /* phones: the count goes under the name, so the name keeps the whole chip width */
+  .chip { flex-wrap: wrap; row-gap: 1px; }
+  .chip .cnt { flex-basis: 100%; margin-left: 26px; }
+}
 @media (max-width: 420px) {
   .ticket .t-stamp { width: 92px; }
   .bigstamp { max-width: 76px; padding: 5px 6px; font-size: 9px; }

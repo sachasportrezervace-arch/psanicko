@@ -83,6 +83,10 @@ async function run(typeA, optsA, typeB, optsB, label) {
     const hidden = await P.f.evaluate(() => ["newGameBtn", "copyTopBtn", "waitCopy", "fsBtn", "soloBtn", "share"].filter(id => { const e = document.getElementById(id); return e && e.checkVisibility(); }));
     check(`${label} ${who} hides links out`, hidden.length === 0, hidden.join(","));
   }
+  for (const [P, who] of [[A, "A"], [B, "B"]]) {
+    const cut = await P.f.evaluate(() => [...document.querySelectorAll("#players .chip b")].filter(b => b.scrollWidth > b.clientWidth).map(b => b.textContent));
+    check(`${label} ${who} names not truncated`, cut.length === 0, cut.join(","));
+  }
   await playOut([A, B], 7);
   for (const P of [A, B]) await P.f.locator("#endBox").waitFor({ timeout: 10000 });
   check(`${label} game 1 ends on both`, true);
