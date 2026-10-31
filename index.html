@@ -3,6 +3,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
+<meta name="herna-protokol" content="1">
 <title>Psaníčko</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="manifest" href="manifest.webmanifest">
@@ -632,6 +633,7 @@ details.how p { margin: 8px 0 0; color: var(--muted); max-width: 60ch; }
   let me = null;       // "x" | "o" on this device, null = watching
   let legacy = false;  // an old #g1 link, shown read-only with an offer to move it to a live link
   let solo = false;    // #solo: a practice game against the bot on this device only, nothing is synced
+  let herna = null;    // { m, r, seat, names, zaklada } when the game runs inside a Herna room (see HERNA-PROTOKOL.md)
   let shareKind = "new";
   let view = "setup";
   let pending = null, cursor = 112;
@@ -763,7 +765,7 @@ details.how p { margin: 8px 0 0; color: var(--muted); max-width: 60ch; }
     $("intro").hidden = v !== "intro";
     $("game").hidden = v !== "play" && v !== "end";
     $("share").hidden = v !== "share";
-    $("newGameBtn").hidden = v === "setup";
+    $("newGameBtn").hidden = v === "setup" || !!herna;
     render();
     window.scrollTo({ top: 0, behavior: "auto" });
   }
@@ -773,12 +775,13 @@ details.how p { margin: 8px 0 0; color: var(--muted); max-width: 60ch; }
   function render() {
     const inGame = !!st && !!room && (view === "play" || view === "end" || view === "share");
     $("topMeta").textContent = st && view !== "setup" && view !== "info" ? topMeta() : "";
-    $("copyTopBtn").hidden = !inGame || view === "share";
+    $("copyTopBtn").hidden = !inGame || view === "share" || !!herna;
     document.title = canPlay() ? "Jsi na tahu · Psaníčko" : "Psaníčko";
     if (view === "setup") renderSetup();
     if (view === "intro") renderIntro();
     if (view === "play" || view === "end") renderGame();
     if (view === "share") renderShare();
+    if (herna) hernaTick();
   }
   function topMeta() {
     if (solo) return "trénink";
@@ -886,7 +889,7 @@ details.how p { margin: 8px 0 0; color: var(--muted); max-width: 60ch; }
     let text, meta = "";
     $("claims").hidden = !!me;
     $("waitDot").hidden = !me;
-    $("waitCopy").hidden = solo;
+    $("waitCopy").hidden = solo || !!herna;
     if (solo) {
       text = `${nameOf(st, opp)} je na tahu…`;
       meta = "Trénink: tahy zůstávají jen v tomhle prohlížeči.";
@@ -896,12 +899,14 @@ details.how p { margin: 8px 0 0; color: var(--muted); max-width: 60ch; }
       $("claimX").textContent = `jsem × ${st.x}`; $("claimO").textContent = `jsem ○ ${st.o}`;
     } else if (busy) {
       text = "Odesílám…";
+    } else if (herna && freeSeat() === opp) {
+      text = `Čeká se, až si přisedne ${nameOf(st, opp)}.`;
     } else if (freeSeat() === opp) {
       text = "Odkaz ještě nikdo neotevřel.";
       meta = "Pošli ho do chatu. Jakmile ho soupeř otevře a přijme výzvu, uvidíš to tady.";
     } else {
       text = `${nameOf(st, opp)} je na tahu…`;
-      meta = (st.t && lastIsMine() ? `Tvůj tah ${ago(st.t)}. ` : "") + "Stránku můžeš zavřít, hra na tomhle odkazu počká.";
+      meta = (st.t && lastIsMine() ? `Tvůj tah ${ago(st.t)}. ` : "") + (herna ? "" : "Stránku můžeš zavřít, hra na tomhle odkazu počká.");
     }
     $("waitText").textContent = text;
     $("waitMeta").textContent = meta; $("waitMeta").hidden = !meta;
@@ -956,6 +961,7 @@ details.how p { margin: 8px 0 0; color: var(--muted); max-width: 60ch; }
       $("tSer").textContent = "nepočítá se do série";
       $("endPrimary").textContent = "Znovu"; $("endSecondary").textContent = "Vyzvat soupeře"; $("endCaption").textContent = "";
     }
+    if (herna) { $("endSecondary").textContent = "Jiná hra"; $("endCaption").textContent = ""; $("endUndo").hidden = true; }
   }
   function concedeText() {
     const win = winner(st), s = stake(st);
@@ -1110,7 +1116,7 @@ details.how p { margin: 8px 0 0; color: var(--muted); max-width: 60ch; }
   const ios = /iP(hone|od|ad)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   function renderFs() {
     const on = !!fsEl(), t = on ? "Zavřít celou obrazovku" : "Celá obrazovka";
-    $("fsBtn").hidden = !on && (standalone() || (!fsApi && !ios));
+    $("fsBtn").hidden = !!herna || (!on && (standalone() || (!fsApi && !ios)));
     $("fsIn").toggleAttribute("hidden", on); $("fsOut").toggleAttribute("hidden", !on);
     $("fsBtn").setAttribute("aria-label", t); $("fsBtn").title = t;
   }
@@ -1182,6 +1188,7 @@ details.how p { margin: 8px 0 0; color: var(--muted); max-width: 60ch; }
   $("endPrimary").addEventListener("click", rematch);
   $("endSecondary").addEventListener("click", () => {
     if (solo) { $("newGameBtn").click(); return; }
+    if (herna) { doHerny({ typ: "jina-hra" }); return; }
     const win = winner(st);
     if (me && win && win.p !== me) copy(concedeText(), "Zkopírováno – vlož to do chatu");
     else copyLink();
@@ -1378,6 +1385,61 @@ details.how p { margin: 8px 0 0; color: var(--muted); max-width: 60ch; }
     return { i: top[Math.floor(Math.random() * top.length)].i, blocked: false };
   }
 
+  // ---------- Herna room (HERNA-PROTOKOL.md v1) ----------
+  // #herna=1&m=…&r=…&seat=0|1&names=A,B&zaklada=0|1: no challenge, no setup. Seat 0 plays × as names[0], seat 1 plays ○.
+  // The player with zaklada=1 creates the room document, the other waits for it and sits down by itself.
+  function hernaParams(h) {
+    const q = {};
+    h.split("&").forEach(kv => { const k = kv.indexOf("="); if (k > 0) q[kv.slice(0, k)] = kv.slice(k + 1); });
+    if (q.herna !== "1" || !/^[0-9a-z]{12,16}$/.test(q.r || "")) return null;
+    const seat = q.seat === "1" ? 1 : 0;
+    const names = (q.names || "").split(",").map(n => attempt(() => decodeURIComponent(n), n).trim().slice(0, 20));
+    return { m: q.m || "", r: q.r, seat, names: [names[0] || "Hráč 1", names[1] || "Hráč 2"], zaklada: q.zaklada === "1", faze: "", sent: {} };
+  }
+  const doHerny = z => { if (herna && window.parent !== window) window.parent.postMessage({ herna: 1, ...z }, "*"); };
+  function hernaTick() {
+    const faze = view === "end" ? "konec" : view === "play" && !freeSeat() ? "hraje" : "ceka";
+    if (faze !== herna.faze) { herna.faze = faze; doHerny({ typ: "stav", faze }); }
+    if (view === "end" && st && ended(st)) {
+      const partie = `${herna.r}:${st.w[0] + st.w[1] + 1}`, win = winner(st);
+      if (!herna.sent[partie]) { herna.sent[partie] = true; doHerny({ typ: "vysledek", partie, vitez: win ? (win.p === "x" ? 0 : 1) : null }); }
+    }
+  }
+  const pause = ms => new Promise(res => setTimeout(res, ms));
+  async function hernaOpen(seq) {
+    const H = herna, side = H.seat ? "o" : "x", tok = side === "x" ? "sx" : "so";
+    doHerny({ typ: "pripraveno" });
+    room = { id: H.r, v: -1, sx: "", so: "" };
+    info(H.zaklada ? "Zakládám hru…" : "Čeká se, až hra naskočí…", H.zaklada ? "" : `Hru zakládá ${H.names[1 - H.seat]}.`, null);
+    let d, misses = 0;
+    for (;;) {
+      try {
+        d = await loadDoc(H.r);
+        if (seq !== bootSeq) return;
+        if (!d && H.zaklada) {
+          // a fresh game: who starts and the stake are drawn, as if one of them had filled in the setup
+          const g = { x: H.names[0], o: H.names[1], s: Math.random() < .5 ? "x" : "o", m: [], t: null, k: String(1 + Math.floor(Math.random() * 6)), kc: "", n: null, w: [0, 0] };
+          d = { app: "psanicko", g: encode(g), v: 1, sx: "", so: "", [tok]: device };
+          await saveDoc(H.r, d);
+        }
+        if (d && decode(d.g || "")) break;
+      } catch { if (++misses === 3 && seq === bootSeq) info($("infoTitle").textContent, "Spojení vázne, zkouším to znovu…", null); }
+      if (seq !== bootSeq) return;
+      await pause(2000);
+      if (seq !== bootSeq) return;
+    }
+    // sit down: the same write as "Přijmout výzvu", without the button
+    if (d[tok] !== device) {
+      try { d = { ...d, v: d.v + 1, [tok]: device }; await saveDoc(H.r, d); } catch { /* the seat is still ours on this device */ }
+      if (seq !== bootSeq) return;
+    }
+    st = decode(d.g); room.v = d.v; room.sx = d.sx || ""; room.so = d.so || "";
+    me = side; store.set("pisk-r-" + H.r, side);
+    lastChange = Date.now(); schedule(3000);
+    if (ended(st)) { anim = { last: true, win: !!winner(st), winDelay: 780 }; setView("end"); }
+    else { anim = st.m.length ? { last: true } : {}; setView("play"); }
+  }
+
   // ---------- boot ----------
   function info(title, meta, retry) {
     $("infoTitle").textContent = title;
@@ -1406,11 +1468,14 @@ details.how p { margin: 8px 0 0; color: var(--muted); max-width: 60ch; }
   function boot() {
     const seq = ++bootSeq;
     clearTimeout(pollT); clearTimeout(botT);
-    room = null; me = null; legacy = false; solo = false; busy = false; pending = null; before = null; draftStamp = 0; anim = {}; net = ""; fails = 0;
+    room = null; me = null; legacy = false; solo = false; herna = null; busy = false; pending = null; before = null; draftStamp = 0; anim = {}; net = ""; fails = 0;
+    renderFs();
     const h = (location.hash || "").replace(/^#/, "");
     const r = /^r\.([0-9a-z]{6,24})$/.exec(h);
     if (r) { openRoom(r[1], seq); return; }
     if (h === "solo") { startSolo(); return; }
+    const hp = hernaParams(h);
+    if (hp) { herna = hp; renderFs(); hernaOpen(seq); return; }
     const s = decode(h);
     if (!s) { st = null; showSetup(); return; }
     // an old link from before the live rooms: show it and offer to move it to one link
