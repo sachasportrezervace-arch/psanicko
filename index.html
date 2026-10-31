@@ -5,6 +5,14 @@
 <meta name="robots" content="noindex">
 <title>Psaníčko</title>
 <meta name="claude:viewport-fit-sides" content="cover">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#13151C">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Psaníčko">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png" type="image/png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Martian+Mono:wght@400;600&family=Shantell+Sans:wght@400..800&display=swap">
 <style>
@@ -38,10 +46,11 @@
 }
 [hidden] { display: none !important; }
 html, body { background: var(--desk); color: var(--text); }
-body { font-family: var(--ui); font-size: 15px; line-height: 1.45; -webkit-tap-highlight-color: transparent; }
+body { margin: 0; font-family: var(--ui); font-size: 15px; line-height: 1.45; -webkit-tap-highlight-color: transparent; }
 .wrap {
   max-width: 1180px; margin: 0 auto;
-  padding-block: 16px 36px;
+  padding-top: max(16px, env(safe-area-inset-top, 0px));
+  padding-bottom: max(36px, env(safe-area-inset-bottom, 0px));
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
   display: grid; gap: 18px;
@@ -63,6 +72,12 @@ h1, h2 { text-wrap: balance; }
 .top-right { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 0 14px; min-width: 0; }
 .linkbtn { background: none; border: 0; padding: 6px 0; min-height: 44px; white-space: nowrap; font: inherit; font-size: 14px; color: var(--hl-text); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .linkbtn:hover { color: #FFB8DA; }
+.iconbtn { width: 44px; height: 44px; flex: none; display: inline-grid; place-items: center; padding: 0; border: 0; border-radius: 12px; background: none; color: var(--hl-text); cursor: pointer; }
+.iconbtn:hover { background: var(--desk-2); }
+.iconbtn svg { width: 22px; height: 22px; }
+.a2hs { display: grid; gap: 6px; padding: 12px 14px; border-radius: 14px; background: var(--desk-2); }
+.a2hs p { margin: 0; font-size: 14px; }
+.a2hs ol { margin: 0; padding-left: 20px; font-size: 14px; color: var(--muted); }
 
 /* buttons and inputs */
 .btn {
@@ -94,12 +109,17 @@ input[type=text]:focus, select:focus { border-color: var(--muted); }
   background: var(--paper); color: var(--ink); border-radius: 6px;
   padding: 0 12px 12px;
   box-shadow: 0 2px 0 rgba(0,0,0,.25), 0 24px 40px -18px rgba(0,0,0,.7);
-  max-width: 680px; margin-inline: auto; width: 100%; box-sizing: border-box;
+  max-width: min(680px, max(300px, 100svh - 40px)); margin-inline: auto; width: 100%; box-sizing: border-box;
   transform-origin: 60% 40%;
 }
 .holes { height: 22px; margin: 0 -12px 6px; background: radial-gradient(circle at 11px 11px, var(--desk) 4.5px, transparent 5px) 0 0 / 22px 22px repeat-x; }
 #board { display: block; width: 100%; height: auto; aspect-ratio: 1; max-width: 100%; touch-action: manipulation; cursor: pointer; border-radius: 2px; }
 #board.locked { cursor: default; }
+/* phones: the 15 × 15 board gets ~22 px cells, so a zoom doubles it inside a square window you pan with a finger */
+.boardscroll { aspect-ratio: 1; overflow: hidden; border-radius: 2px; }
+.boardscroll.zoomed { overflow: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.boardscroll.zoomed #board { width: 200%; max-width: none; }
+.boardbar { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: -8px 0 4px; }
 #board:focus-visible { outline-color: var(--blue); }
 .note { display: flex; gap: 6px 10px; align-items: baseline; margin-top: 10px; flex-wrap: wrap; }
 .note .who { font: 10px var(--mono); color: var(--ink-muted); letter-spacing: .06em; white-space: nowrap; }
@@ -139,7 +159,10 @@ input[type=text]:focus, select:focus { border-color: var(--muted); }
 }
 @media (min-width: 900px) {
   .game { grid-template-columns: minmax(0, 1.2fr) minmax(320px, 1fr); grid-template-rows: auto 1fr; grid-template-areas: "board top" "board bottom"; column-gap: 56px; row-gap: 22px; align-items: start; }
-  .sheet { padding: 0 16px 16px; transform: rotate(-.4deg); }
+  .sheet { padding: 0 16px 16px; transform: rotate(-.4deg); max-width: min(680px, max(420px, 100svh - 120px)); }
+  .boardbar { display: none; }
+  .boardscroll.zoomed { overflow: hidden; }
+  .boardscroll.zoomed #board { width: 100%; }
   .holes { height: 28px; margin: 0 -16px 8px; background: radial-gradient(circle at 14px 14px, var(--desk) 5.5px, transparent 6px) 0 0 / 28px 28px repeat-x; }
   .h1 { font-size: 46px; }
   .big { font-size: 48px; }
@@ -229,8 +252,25 @@ details.how p { margin: 8px 0 0; color: var(--muted); max-width: 60ch; }
       <span class="meta" id="topMeta"></span>
       <button type="button" class="linkbtn" id="copyTopBtn" hidden>Odkaz na hru</button>
       <button type="button" class="linkbtn" id="newGameBtn" hidden>Nová hra</button>
+      <button type="button" class="iconbtn" id="fsBtn" aria-label="Celá obrazovka" title="Celá obrazovka" hidden>
+        <svg id="fsIn" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+        <svg id="fsOut" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" hidden><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>
+      </button>
     </div>
   </header>
+
+  <div class="a2hs" id="a2hs" role="note" hidden>
+    <div class="between">
+      <p><b>Přes celou obrazovku na iPhonu</b></p>
+      <button type="button" class="linkbtn" id="a2hsClose">Zavřít</button>
+    </div>
+    <ol>
+      <li>V Safari dole klepni na <b>Sdílet</b> (čtvereček se šipkou nahoru).</li>
+      <li>Vyber <b>Přidat na plochu</b> a potvrď <b>Přidat</b>.</li>
+      <li>Hru otevírej ikonou Psaníčko na ploše, poběží bez lišty prohlížeče.</li>
+    </ol>
+    <p class="meta">Udělej to přímo v rozehrané hře, ikona si pak pamatuje tenhle odkaz. Kdyby hra po otevření z plochy psala „Přihlížíš“, klepni na „jsem …“ se svým jménem.</p>
+  </div>
 
   <!-- 1. Založení výzvy -->
   <section id="setup" class="narrow" hidden>
@@ -343,9 +383,15 @@ details.how p { margin: 8px 0 0; color: var(--muted); max-width: 60ch; }
     </div>
 
     <div class="g-board">
+      <div class="boardbar">
+        <button type="button" class="linkbtn" id="zoomBtn" aria-pressed="false">Přiblížit desku</button>
+        <span class="meta" id="zoomMeta">tah vybereš ťuknutím, potvrdíš tlačítkem</span>
+      </div>
       <div class="sheet" id="sheet">
         <div class="holes" aria-hidden="true"></div>
-        <svg id="board" viewBox="-0.15 -0.15 15.3 15.3" tabindex="0" role="application" aria-label="Hrací deska 15 × 15. Šipkami vyber pole, Enter vybere a druhým Enterem zahraješ tah."></svg>
+        <div class="boardscroll" id="boardScroll">
+          <svg id="board" viewBox="-0.15 -0.15 15.3 15.3" tabindex="0" role="application" aria-label="Hrací deska 15 × 15. Šipkami vyber pole, Enter vybere a druhým Enterem zahraješ tah."></svg>
+        </div>
         <div class="note" id="note" hidden>
           <span class="who" id="noteWho"></span>
           <p id="noteText"></p>
@@ -677,6 +723,7 @@ details.how p { margin: 8px 0 0; color: var(--muted); max-width: 60ch; }
       svg.append(el("rect", { x: cursor % N + .04, y: Math.floor(cursor / N) + .04, width: .92, height: .92, fill: "none", stroke: "var(--ink)", "stroke-width": ".06", rx: .08 }));
     }
     svg.classList.toggle("locked", !canPlay());
+    if (a.last && last >= 0) cellIntoView(last, true);
     renderNote(a.last ? (a.win ? 1300 : 780) : 0);
   }
 
@@ -1015,6 +1062,52 @@ details.how p { margin: 8px 0 0; color: var(--muted); max-width: 60ch; }
     if (mv) { ev.preventDefault(); cursor = Math.min(N - 1, Math.max(0, r + mv[0])) * N + Math.min(N - 1, Math.max(0, c + mv[1])); drawBoard(); }
     else if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); if (pending === cursor) confirmMove(); else choose(cursor); }
   });
+
+  // ---------- board zoom (phones) ----------
+  let zoomed = false;
+  function cellIntoView(i, smooth) {
+    const box = $("boardScroll");
+    if (!zoomed || box.scrollWidth <= box.clientWidth) return;
+    const cell = box.scrollWidth / 15.3, x = (i % N + .65) * cell, y = (Math.floor(i / N) + .65) * cell;
+    box.scrollTo({ left: x - box.clientWidth / 2, top: y - box.clientHeight / 2, behavior: smooth && !calm() ? "smooth" : "auto" });
+  }
+  function setZoom(on) {
+    zoomed = on;
+    $("boardScroll").classList.toggle("zoomed", on);
+    $("zoomBtn").textContent = on ? "Celá deska" : "Přiblížit desku";
+    $("zoomBtn").setAttribute("aria-pressed", String(on));
+    $("zoomMeta").textContent = on ? "desku posouváš prstem" : "tah vybereš ťuknutím, potvrdíš tlačítkem";
+    store.set("pisk-zoom", on ? "1" : "");
+    if (on && st) cellIntoView(pending ?? (st.m.length ? st.m[st.m.length - 1] : 112));
+  }
+  $("zoomBtn").addEventListener("click", () => setZoom(!zoomed));
+  setZoom(store.get("pisk-zoom") === "1");
+
+  // ---------- fullscreen; iPhone Safari has no Fullscreen API, there the game goes to the home screen ----------
+  const fsEl = () => document.fullscreenElement || document.webkitFullscreenElement;
+  const fsApi = !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
+  const standalone = () => matchMedia("(display-mode: standalone), (display-mode: fullscreen)").matches || navigator.standalone === true;
+  const ios = /iP(hone|od|ad)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  function renderFs() {
+    const on = !!fsEl(), t = on ? "Zavřít celou obrazovku" : "Celá obrazovka";
+    $("fsBtn").hidden = !on && (standalone() || (!fsApi && !ios));
+    $("fsIn").toggleAttribute("hidden", on); $("fsOut").toggleAttribute("hidden", !on);
+    $("fsBtn").setAttribute("aria-label", t); $("fsBtn").title = t;
+  }
+  $("fsBtn").addEventListener("click", () => {
+    const d = document, root = d.documentElement;
+    if (fsEl()) { (d.exitFullscreen || d.webkitExitFullscreen).call(d); return; }
+    if (fsApi) {
+      const p = (root.requestFullscreen || root.webkitRequestFullscreen).call(root, { navigationUI: "hide" });
+      if (p && p.catch) p.catch(() => toast("Celou obrazovku tenhle prohlížeč nepovolil."));
+      return;
+    }
+    $("a2hs").hidden = !$("a2hs").hidden;
+  });
+  $("a2hsClose").addEventListener("click", () => { $("a2hs").hidden = true; });
+  document.addEventListener("fullscreenchange", renderFs);
+  document.addEventListener("webkitfullscreenchange", renderFs);
+  renderFs();
 
   STAMPS.slice(1).forEach((label, k) => {
     const b = document.createElement("button");
