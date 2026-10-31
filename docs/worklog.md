@@ -1,5 +1,12 @@
 # Psaníčko – deník
 
+## 31. 10. 2026 noc – celé jméno ve štítku hráče (commit ff57e54)
+
+- Hotovo: Herna (živý test `herna/tests/mistnost-hry.cjs` 33/33) hlásila, že na iPhonu 390 px se jméno zkracuje na „Rad…“ kvůli „ty · na tahu“.
+  Do 480 px šířky jde počet tahů / „na tahu“ ve štítku na druhý řádek pod jméno, jméno má celou šířku.
+- Ověřeno: `tests/herna-e2e.cjs` má novou kontrolu „names not truncated“ (bez opravy FAIL na „Radka Ž“, s opravou 17/17 lokálně i živě s REAL=1, exit 0);
+  `tests/solo-e2e.cjs` 56/56 lokálně, exit 0; render WebKit iPhone 13 zkontrolován.
+
 ## 31. 10. 2026 noc – napojení na místnost Herny (commit af0bcc3)
 
 - Hotovo: `<meta name="herna-protokol" content="1">`; `#herna=1&m&r&seat&names&zaklada` přeskočí výzvu i setup.
